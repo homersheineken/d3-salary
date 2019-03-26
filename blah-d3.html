@@ -1,0 +1,295 @@
+<style>
+
+    body {
+        font-family: BentonSans,"Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+    .box {
+        font: 10px sans-serif;
+    }
+    .box line,
+    .box rect,
+    .box circle {
+        fill: #008fd3;
+        stroke: #000;
+        stroke-width: 1px;
+    }
+
+    .box .center {
+        stroke-dasharray: 3,3;
+    }
+
+    .box .outlier {
+        fill: none;
+        stroke: #000;
+    }
+    .axis {
+        font: 12px sans-serif;
+    }
+    .axis path,
+    .axis line {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+    }
+    .x.axis path {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+    }
+    .plotmenu {
+        font-size: 10px;
+        line-height: 12px;
+        float: left;
+        margin-right: 100px;
+    }
+    .plotmenu > div {
+        max-width: 140px;
+        border-bottom: 1px solid black;
+        position: relative;
+        display:block;
+    }
+    .plotmenu > div:hover {
+        background-color: #cccccc;
+        color:black;
+
+    }
+    .plotmenu > div:hover .submenu:hover {
+        color:black;
+    }
+    .menusub {
+        font-size: 9px;
+        width: 105px;
+        border-bottom: 1px solid black;
+    }
+    .menusub:hover{
+        color: blue;
+        background-color: #cccccc;
+    }
+
+    .menuname:hover ~  .menusub_container {
+        visibility:visible;
+        transition-delay: 0s;
+    }
+    .menusub_container:hover {
+        visibility:visible;
+        transition: 0s;
+    }
+    .menusub_container {
+        margin-left: 140px;
+        visibility:hidden;
+        position:absolute;
+        top:-2px;
+        transition: visibility 0s .00001s;
+        min-height: 530px;
+    }
+    h3 {
+        margin-left: 285px;
+    }
+    .tick {
+        font-size: 11px;
+        font-style: italic;
+        color: orange;
+        margin-left: -20px;
+    }
+    g.y.axis {
+        transform: translate(-20px, 0px);
+    }
+    .after_chart {
+        margin-left: 282px;
+    }
+    .tier1, .tier2, .tier3, .tier4 {
+        float:left;
+        min-width: 120px;
+    }
+</style>
+<div class="plotmenu"></div>
+<div class="title"><h3>Architecture and Engineering Occupations</h3></div>
+<div id="chart"><div id="chart0"></div></div>
+<div class="after_chart">
+    <div class="tier1">Tier 1</div>
+    <div class="tier2">Tier 2</div>
+    <div class="tier3">Tier 3</div>
+    <div class="tier4">Tier 4</div>
+</div>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+<script src="http://d3js.org/d3.v3.js"></script>
+<script src="https://bl.ocks.org/mbostock/raw/4061502/box.js"></script>
+
+<script>
+    var margin = {top: 10, right: 50, bottom: 20, left: 50},
+            width = 120 - margin.left - margin.right,
+            height = 500 - margin.top - margin.bottom;
+    var labels = true;
+    var min = Infinity,
+            max = -Infinity,
+            data =[],
+            the_data = new Object();
+    var flags = {};
+    var newPlaces = [];
+    var idex = 0;
+    var index, svg, container;
+    var name = "Architecture and Engineering Occupations";
+    var chart = d3.box()
+            .whiskers(iqr(1.5))
+            .width(width)
+            .height(height);
+
+    d3.csv("cured_data2.csv", function(error, csv) {
+        if (error) throw error;
+        //Build data by category and menu for them
+        for (index = 0; index < csv.length; ++index) {
+            if (!flags[csv[index].category]) {
+                flags[csv[index].category] = true;
+                the_data[csv[index].category] = new Array;
+            }
+            the_data[csv[index].category].push(csv[index]);
+        }
+        //Build menu links
+        the_data = sortObject(the_data);
+        delete the_data[""];
+        jQuery.each(the_data, function(i, x) {
+            var str = i;
+            str = str.replace(/\,/g, '').replace(/\s+/g, '_').toLowerCase();
+            jQuery(".plotmenu").append("<div id='" +str+ "'><div class='menuname'>"+i+"</div></div>");
+            var menusub = [];
+            jQuery.each(the_data[i], function(j){
+                menusub.push(this.name);
+            });
+            var unique_menusub = [];
+            jQuery.each(menusub, function(i, el){
+                if($.inArray(el, unique_menusub) === -1) {
+                    unique_menusub[el] = el;
+                }
+            });
+            unique_menusub = sortObject(unique_menusub);
+            var newElem = document.createElement ("div");
+            newElem.setAttribute("id", "menusub_container" + str);
+            newElem.className += " menusub_container";
+            document.getElementById(str).appendChild(newElem);
+            jQuery.each(unique_menusub, function(k, el){
+                var newElem2 = document.createElement ("div");
+                newElem2.className += "menusub";
+                newElem2.innerHTML = el;
+                document.getElementById("menusub_container" +str).appendChild(newElem2);
+            });
+        });
+
+        //Make menu links clickable
+        build_chart(name);
+        jQuery(".plotmenu div div").on("click", function(txt) {
+            var txt = jQuery(txt.target).text();
+            var parent_txt = this.parentNode.parentNode.firstChild.innerText;
+            build_chart(txt, parent_txt);
+            jQuery(".title").html("<h3>" + txt + "</h>");
+        });
+    });
+    /***********************************/
+
+    //FUNCTIONS
+    function build_chart(name, parent) {
+        var min = Infinity,
+                max = -Infinity,
+                new_data = [];
+        //build min/max/stats
+        if (name in the_data) {
+            the_data[name].forEach(function(x) {
+                var e = Math.floor(x.tier - 1),
+                //r = Math.floor(x.name - 1),
+                        s = Math.floor(x.value),
+                        d = data[e];
+                if (!d) d = data[e] = [s];
+                else d.push(s);
+                if (s > max) max = s;
+                if (s < min) min = s;
+            });
+        } else {
+            var new_name = name;
+            for (var i = 0; i < the_data[parent].length ; i++) {
+                if (the_data[parent][i].name === new_name) {
+                    new_data.push(the_data[parent][i]);
+                }
+            }
+            new_data.forEach(function(x) {
+                var e = Math.floor(x.tier - 1),
+                //r = Math.floor(x.name - 1),
+                        s = Math.floor(x.value),
+                        d = data[e];
+                if (!d) d = data[e] = [s];
+                else d.push(s);
+                if (s > max) max = s;
+                if (s < min) min = s;
+            });
+        }
+        jQuery("#chart0").html("");
+        //build plot chart
+        chart.domain([min, max]);
+         svg = d3.select("#chart0").selectAll("svg")
+                .data(data)
+                .enter().append("svg")
+                .attr("class", "box")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.bottom + margin.top)
+                .append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+                .call(chart);
+        // add Axis
+        var xScale = d3.time.scale()
+                        .domain([min, max])
+                        .range([0, width]),
+            yScale = d3.scale.linear()
+                        .domain([min, max]).nice()
+                        .range([height, 0]);
+        var xAxis = d3.svg.axis()
+                        .scale(xScale)
+                        .orient('bottom')
+                        .ticks(1),
+            yAxis = d3.svg.axis()
+                        .scale(yScale)
+                        .orient('left');
+        d3.selection.prototype.first = function() {
+            return d3.select(this[0][0][0]);
+        };
+        //Y AXIS
+        container = d3.selectAll(svg).first();
+        container.append('g').attr('transform','translate('+margin.left+120+','+margin.top+')');
+         container.append('g')
+         .attr('class', 'y axis')
+         .call(yAxis);
+        //X-AXIS
+        /*container = d3.selectAll(svg);
+        svg.append('g')
+                .attr('class', 'x axis')
+                .attr('transform', 'translate(0,' + height + ')')
+                .call(xAxis);
+
+        jQuery("g.x.axis > path").remove();
+        jQuery("g.x.axis .tick line").remove();
+        jQuery("g.x.axis > g text").html("");
+        jQuery("g.x.axis > g text").eq(0).html("Tier 1");
+        jQuery("g.x.axis > g text").eq(1).html("Tier 2");
+        jQuery("g.x.axis > g text").eq(2).html("Tier 3");
+        jQuery("g.x.axis > g text").eq(3).html("Tier 4");*/
+
+    }
+    // Returns a function to compute the interquartile range.
+    function iqr(k) {
+        return function(d, i) {
+            var q1 = d.quartiles[0],
+                    q3 = d.quartiles[2],
+                    iqr = (q3 - q1) * k,
+                    i = -1,
+                    j = d.length;
+            while (d[++i] < q1 - iqr);
+            while (d[--j] > q3 + iqr);
+            return [i, j];
+        };
+    }
+    //sort object alphabetically
+    function sortObject(o) {
+        return Object.keys(o).sort().reduce((r, k) => (r[k] = o[k], r), {});
+    }
+    function object_name(occupation, x, job) {
+        return x.name == occupation.name;
+    }
+</script>

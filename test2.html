@@ -1,0 +1,487 @@
+<style>
+
+    body {
+        font-family: BentonSans,"Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+    a {
+        color: #008fd3;
+    }
+    .box {
+        font: 10px sans-serif;
+    }
+    .box line,
+    .box rect,
+    .box circle {
+        fill: #008fd3;
+        stroke: #000;
+        stroke-width: 1px;
+    }
+
+    .box .center {
+        stroke-dasharray: 3,3;
+    }
+
+    .box .outlier {
+        fill: none;
+        stroke: #000;
+    }
+    .axis {
+        font: 12px sans-serif;
+    }
+    .axis path,
+    .axis line {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+    }
+    .x.axis path {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+    }
+    div#chart {
+        margin-top: -100px;
+    }
+    .plotmenu {
+        font-size: 10px;
+        line-height: 12px;
+        float: left;
+        margin-right: 100px;
+    }
+    .plotmenu > div {
+        max-width: 140px;
+        border-bottom: 1px solid black;
+        position: relative;
+        display:block;
+    }
+    .plotmenu > div:hover {
+        background-color: #cccccc;
+        color:black;
+
+    }
+    .plotmenu > div:hover .submenu:hover {
+        color:black;
+    }
+    .menusub {
+        font-size: 9px;
+        width: 105px;
+        border-bottom: 1px solid black;
+    }
+    .menusub:hover{
+        color: blue;
+        background-color: #cccccc;
+    }
+
+    .menuname:hover ~  .menusub_container {
+        visibility:visible;
+        transition-delay: 0s;
+    }
+    .menusub_container:hover {
+        visibility:visible;
+        transition: 0s;
+    }
+    .menusub_container {
+        margin-left: 140px;
+        visibility:hidden;
+        position:absolute;
+        top:-2px;
+        transition: visibility 0s .00001s;
+        min-height: 530px;
+    }
+    h3 {
+        margin-left: 285px;
+    }
+    .tick {
+        font-size: 11px;
+        font-style: italic;
+        color: orange;
+        margin-left: -20px;
+    }
+    g.y.axis {
+        transform: translate(-20px, 0px);
+    }
+    .after_chart {
+        margin-left: 282px;
+        margin-top: 10px;
+        max-width: 480px;
+    }
+    .tier1, .tier2, .tier3, .tier4{
+        float:left;
+        min-width: 120px;
+    }
+    #download_json  {
+        margin: 35px 0px 0px 282px;
+        position: absolute;
+    }
+    #download_csv {
+        margin: 60px 0px 0px 282px;
+        position: absolute;
+    }
+    .tier1n, .tier2n, .tier3n, .tier4n {
+        font-size: 10px;
+        /*display: none;*/
+    }
+    .currency_cont {
+        margin-left: 800px;
+    }
+    .currency_time, .currency_rate {
+        font-size: 10px;
+    }
+    g.d3-exploding-boxplot.y.axis {
+        transform: translate(-14px, 0px);
+    }
+
+    div.tooltip {
+        position: absolute; text-align: center;
+        width: 40px;
+        height: 15px;
+        padding: 2px;
+        font: 12px sans-serif; background: lightsteelblue; border: 0px; border-radius: 5px; pointer-events: none;
+    }
+    line.d3-exploding-boxplot.line.max.vline, line.d3-exploding-boxplot.line.min.vline {
+        stroke-dasharray: 5,5;
+    }
+    #chart0 {
+        display:None;
+    }
+    .tier5 {
+        padding-top: 33px;
+        font-size: 12px;
+        margin-bottom: -15px;
+    }
+</style>
+<div class="plotmenu"></div>
+<div class="title"><h3>Architecture and Engineering Occupations</h3></div>
+<div class="currency_cont">Currency<br />
+    <select id="currency">
+        <option value="USD">US Dollars</option>
+        <option value="GBP">GB Pounds</option>
+        <option value="EUR">Euros</option>
+    </select>
+    <div class="currency_time"></div>
+    <div class="currency_rate"></div>
+
+</div>
+<div id="chart"><div id="chartContainer"></div></div>
+<div id="chart0"></div>
+<div class="after_chart">
+    <div class="tier1">Tier 1 <span class="tier1n"></span></div>
+    <div class="tier2">Tier 2 <span class="tier2n"></span></div>
+    <div class="tier3">Tier 3 <span class="tier3n"></span></div>
+    <div class="tier4">Tier 4 <span class="tier4n"></span></div>
+    <div class="tier5"><em>Click a box to explode the box, double click to return to boxplot</em></div>
+
+</div>
+
+<div id="download_json"></div>
+<div id="download_csv"></div>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+<script src="http://d3js.org/d3.v3.js"></script>
+<script src="https://bl.ocks.org/mbostock/raw/4061502/box.js"></script>
+
+<script src="exploding.js"></script>
+<script src="http://mcaule.github.io/d3_exploding_boxplot/bower_components/d3-tip/index.js"></script>
+
+<script>
+    var margin = {top: 10, right: 50, bottom: 20, left: 50},
+            width = 120 - margin.left - margin.right,
+            height = 500 - margin.top - margin.bottom;
+    var labels = true;
+    var min = Infinity,
+            max = -Infinity,
+            the_data = new Object();
+    var flags = {};
+    var newPlaces = [];
+    var idex = 0;
+    var index, svg, container;
+    var name = "Architecture and Engineering Occupations";
+    var feedname = "http://www.apilayer.net/api/live?access_key=2405d5faaa59690d9f97ef634599bf0a",
+            currency = "USD",
+            currency_rate = 1,
+            xmldata = {};
+
+    //*****GET CURRENCY FEED
+    $.get(feedname, function (feeddata) {
+        xmldata = feeddata;
+        jQuery(".currency_time").html( "<em>Currency data from</em><br />" + time(xmldata.timestamp) );
+    });
+
+    var chart = d3.box()
+            .whiskers(iqr(1.5))
+            .width(width)
+            .height(height);
+    d3.csv("cured_data2.csv", function(error, csv) {
+        if (error) throw error;
+        //Build data by category and menu for them
+        for (index = 0; index < csv.length; ++index) {
+            if (!flags[csv[index].category]) {
+                flags[csv[index].category] = true;
+                the_data[csv[index].category] = new Array;
+            }
+            the_data[csv[index].category].push(csv[index]);
+        }
+        //Build menu links
+        the_data = sortObject(the_data);
+        delete the_data[""];
+        jQuery.each(the_data, function(i, x) {
+            var str = i;
+            str = str.replace(/\,/g, '').replace(/\s+/g, '_').toLowerCase();
+            jQuery(".plotmenu").append("<div id='" +str+ "'><div class='menuname'>"+i+"</div></div>");
+            var menusub = [];
+            jQuery.each(the_data[i], function(j){
+                menusub.push(this.name);
+            });
+            var unique_menusub = [];
+            jQuery.each(menusub, function(i, el){
+                if($.inArray(el, unique_menusub) === -1) {
+                    unique_menusub[el] = el;
+                }
+            });
+            unique_menusub = sortObject(unique_menusub);
+            var newElem = document.createElement ("div");
+            newElem.setAttribute("id", "menusub_container" + str);
+            newElem.className += " menusub_container";
+            document.getElementById(str).appendChild(newElem);
+            jQuery.each(unique_menusub, function(k, el){
+                var newElem2 = document.createElement ("div");
+                newElem2.className += "menusub";
+                newElem2.innerHTML = el;
+                document.getElementById("menusub_container" +str).appendChild(newElem2);
+            });
+        });
+        var txt_top = name, parent_txt_top;
+        //Make menu links clickable
+        build_chart(name, parent_txt_top, currency);
+        jQuery(".plotmenu div div.menuname").on("click", function(txt) {
+            var txt = jQuery(txt.target).text();
+            var parent_txt = this.parentNode.parentNode.firstChild.innerText;
+            jQuery(".title").html("<h3>" + txt + "</h3>");
+            currency = jQuery("#currency").val();
+            txt_top = txt;
+            name = parent_txt_top = parent_txt;
+            var checkboxes = [];
+            $("input:checkbox[name=type]:checked").each(function(){
+                checkboxes.push($(this).val());
+            });
+            build_chart(txt, parent_txt, currency, xmldata);
+
+        });
+        jQuery(".menusub").on("click", function(txt) {
+            var txt = jQuery(txt.target).text();
+            var parent_txt = this.parentNode.parentNode.firstChild.innerText;
+            jQuery(".title").html("<h3>" + txt + "</h3>");
+            currency = jQuery("#currency").val();
+            txt_top = txt;
+            name = parent_txt_top = parent_txt;
+            var checkboxes = [];
+            $("input:checkbox[name=type]:checked").each(function(){
+                checkboxes.push($(this).val());
+            });
+            build_chart(txt, parent_txt, currency, xmldata);
+
+        });
+
+        d3.select("#currency").on("change", function() {
+            build_chart(txt_top, parent_txt_top, this.value, xmldata);
+        });
+    });
+    /***********************************/
+
+    //FUNCTIONS
+    function build_chart(name, parent, currency, xmldata) {
+
+        var min = Infinity,
+                max = -Infinity,
+                data =[],
+                new_data = [];
+
+        if (currency != "USD") {
+            currency_rate = xmldata.quotes["USD"+currency];
+        } else
+        {
+            currency_rate = 1;
+        }
+        jQuery(".currency_rate").html( "<em>Currency rate:</em><br />" + currency_rate );
+        //build min/max/stats
+        if (name in the_data) {
+            new_data = JSON.parse(JSON.stringify(the_data[name]));
+            new_data.forEach(function(x) {
+                x.value = x.value * currency_rate;
+                var e = Math.floor(x.tier - 1),
+                //r = Math.floor(x.name - 1),
+                        s = Math.floor(x.value),
+                        d = data[e];
+                if (!d) d = data[e] = [s];
+                else d.push(s);
+                if (s > max) max = s;
+                if (s < min) min = s;
+            });
+        } else  {
+            var new_name = name;
+            var the_length = the_data[parent].length ? the_data[parent].length : 0;
+            for (var i = 0; i < the_length; i++) {
+                if (the_data[parent][i].name === new_name) {
+                    new_data.push(the_data[parent][i]);
+                }
+            }
+            new_data = JSON.parse(JSON.stringify(new_data));
+            new_data.forEach(function(x) {
+                x.value = x.value * currency_rate;
+                var e = Math.floor(x.tier - 1),
+                //r = Math.floor(x.name - 1),
+                        s = Math.floor(x.value),
+                        d = data[e];
+                if (!d) d = data[e] = [s];
+                else d.push(s);
+                if (s > max) max = s;
+                if (s < min) min = s;
+            });
+        }
+
+        //****INITIALIZE COUNTERS TO 0******
+        /*jQuery(".tier1n").html("- " + 0);
+        jQuery(".tier2n").html("- " + 0);
+        jQuery(".tier3n").html("- " + 0);
+        jQuery(".tier4n").html("- " + 0);*/
+        //*****IF DATA EMPTY FOR TIER, ADD 0
+        if (data[0] === undefined)  {data[0] = [0];}
+        if (data[1] === undefined)  {data[1] = [0];}
+        if (data[2] === undefined)  {data[2] = [0];}
+        if (data[3] === undefined)  {data[3] = [0];}
+        console.log(data);
+        //*******BUILD PLOT CHART
+        jQuery("#chart0").html("");
+        jQuery("#chartContainer").html("");
+        chart.domain([min, max]);
+        svg = d3.select("#chart0").selectAll("svg")
+                .data(data)
+                .enter().append("svg")
+                .attr("class", "box")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.bottom + margin.top)
+                .append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+                .call(chart);
+
+        //******Add Axis
+        var xScale = d3.time.scale()
+                        .domain([min, max])
+                        .range([0, width]),
+                yScale = d3.scale.linear()
+                        .domain([min, max]).nice()
+                        .range([height, 0]);
+        var xAxis = d3.svg.axis()
+                        .scale(xScale)
+                        .orient('bottom')
+                        .ticks(1),
+                yAxis = d3.svg.axis()
+                        .scale(yScale)
+                        .orient('left');
+        d3.selection.prototype.first = function() {
+            return d3.select(this[0][0][0]);
+        };
+        //Y AXIS
+        container = d3.selectAll(svg).first();
+        container.append('g').attr('transform','translate('+margin.left+120+','+margin.top+')');
+        container.append('g')
+                .attr('class', 'y axis')
+                .call(yAxis);
+
+        new_data.forEach(function (x, i){
+            x.g = "Tier " + x.tier;
+            x.t = "pt " + i;
+            x.v = x.value;
+        });
+        //******EXPLODING CHART!!!!!******
+        var exploding_chart = exploding_boxplot(new_data,
+                {y:'v',group:'g',color:'g',label:'t'});
+
+        exploding_chart('#chartContainer');
+
+        //******DOWNLOAD SECTION**********
+        jQuery("#download_json").html("");
+        jQuery("#download_csv").html("");
+        //Add download of data as json
+        var dataset = "text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
+        $('<a href="data:' + dataset + '" download="' + name + ' - ' + currency + '.json">Download ' + name + ' - ' + currency +' - data(json)</a>').appendTo('#download_json');
+
+        //Add download of data csv
+        var csvData = new Array();
+        var largest_array = [data[0] ? data[0].length : 0, data[1] ? data[1].length : 0, data[2] ? data[2].length : 0, data[3] ? data[3].length : 0];
+        var largest = Math.max.apply(Math, largest_array);
+        csvData.push('"Tier 1","Tier 2","Tier 3","Tier 4"');
+        /*jQuery.each(data, function(i, item, x) {
+         jQuery.each(item, function(j, y) {
+         csvData.push(item[j]);
+         });
+         csvData.push(item[i]);
+         });*/
+        for (index=0; index<largest; index++) {
+            csvData.push([ data[0] === undefined ? " " : data[0][index],
+                data[1] === undefined ? " " : data[1][index],
+                data[2] === undefined ? " " : data[2][index],
+                data[3] === undefined ? " " : data[3][index] ]);
+        }
+        // download stuff
+        var fileName =  name + ' - ' + currency  + ".csv";
+        var buffer = csvData.join("\n");
+        var blob = new Blob([buffer], {
+            "type": "text/csv;charset=utf8;"
+        });
+        var link = document.createElement("a");
+
+        if(link.download !== undefined) { // feature detection
+            // Browsers that support HTML5 download attribute
+            link.setAttribute("href", window.URL.createObjectURL(blob));
+            link.setAttribute("download", fileName);
+        }
+        else {
+            // it needs to implement server side export
+            link.setAttribute("href", "http://www.example.com/export");
+        }
+        link.innerHTML = "Download " + name + ' - ' + currency  + " - data(csv)";
+        jQuery("#download_csv").append(link);
+
+        //******END DOWNLOAD SECTION********
+
+        jQuery(".tier1n").html("- " +  data[0].length);
+        jQuery(".tier2n").html("- " +  data[1].length);
+        jQuery(".tier3n").html("- " +  data[2].length);
+        jQuery(".tier4n").html("- " +  data[3].length);
+
+    }
+    // Returns a function to compute the interquartile range.
+    function iqr(k) {
+        return function(d, i) {
+            var q1 = d.quartiles[0],
+                    q3 = d.quartiles[2],
+                    iqr = (q3 - q1) * k,
+                    i = -1,
+                    j = d.length;
+            while (d[++i] < q1 - iqr);
+            while (d[--j] > q3 + iqr);
+            return [i, j];
+        };
+    }
+    //sort object alphabetically
+    function sortObject(o) {
+        return Object.keys(o).sort().reduce((r, k) => (r[k] = o[k], r), {});
+    }
+    function object_name(occupation, x, job) {
+        return x.name == occupation.name;
+    }
+
+    function time(ms) {
+        var a = new Date(ms * 1000);
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var year = a.getFullYear();
+        var month = months[a.getMonth()];
+        var date = a.getDate();
+        var hour = a.getHours();
+        var min = a.getMinutes() < 10 ? '0' + a.getMinutes() : a.getMinutes();
+        var sec = a.getSeconds() < 10 ? '0' + a.getSeconds() : a.getSeconds();
+        var time = date + ' ' + month + ' ' + year + ' ' + hour + ':' + min + ':' + sec ;
+        return time;
+    }
+</script>
